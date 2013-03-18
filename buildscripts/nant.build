@@ -1,0 +1,261 @@
+<?xml version="1.0"?>
+<project name="PrototypeUtilities" default="all">
+
+  <include buildfile="configuration.build" />
+
+  <!-- settings -->
+  <property name="debug" value="true" />
+  <property name="nant.settings.currentframework" value="net-4.0" />
+  <property name="testframework" value="nunit" />
+  <property name="target-web-server" value="" />
+
+  <!-- paths -->
+  <property name="root-path" value="${path::get-full-path('..')}" />
+  <property name="build-path" value="${root-path}\build" />
+  <property name="tools-path" value="${root-path}\tools" />
+  <property name="src-path" value="${root-path}\src" />
+  <property name="build-reports-path" value="${build-path}\reports" />
+  <property name="framework-get-assembly-directory" value="${framework::get-assembly-directory('net-4.0')}" />
+  <property name="dotNetReferenceAssemblyPath" value="${framework-get-assembly-directory}\" />
+  <property name="version-file-path" value="${root-path}\buildscripts\version.xml" />
+  <property name="assembly-info-path" value="..\src\app\Properties\AssemblyCommonInfo.cs" />
+
+  <!-- Solution file -->
+  <property name="Solution.Filename" value="..\src\PrototypeUtilities.sln" />
+
+  <!-- executables -->
+  <property name="altova.executable" value="${tools-path}\altova\AltovaXML.exe" />
+  <property name="winscp.executable" value="${tools-path}\winscp\winscp.com" />
+  <property name="nunit.executable" value="${tools-path}\nunit\bin\net-2.0\nunit-console-x86.exe" />
+  <property name="mstest.executable" value="${tools-path}\mstest\bin\mstest.exe" />
+  <property name="ncover.executable" value="${tools-path}\ncover\ncover.console.exe" />
+  <property name="ncoverexplorer.executable" value="${tools-path}\ncover\NCoverExplorer.Console.exe" />
+
+  <!-- results -->
+  <property name="build.mstest.result.file" value="${build-reports-path}\mstest.trx" />
+  <property name="build.nunit.result.file" value="${build-reports-path}\testresults.nunit.xml" />
+  <property name="build.junit.result.file" value="${build-reports-path}\testresults.junit.xml" />
+  <property name="build.ncover.result.file" value="${build-reports-path}\coverage.xml" />
+  <property name="build.ncover.log.file" value="${build-reports-path}\ncover.log" />
+  <property name="build.clover.result.file" value="${build-reports-path}\clover.xml" />
+
+  <!-- reports -->
+  <property name="build.nunit.report.file" value="${build-path}\reports\testresults.html" />
+  <property name="build.nunit.summary.file" value="${build-path}\reports\test-summary.html" />
+  <property name="build.nunit.rawreport.file" value="${build-path}\reports\index.html" />
+  <property name="build.nunit.test.report.file" value="${build-path}\reports\unit-test-report.html" />
+  <property name="build.version.report.file" value="${build-reports-path}\version.xml" />
+
+  <!-- code coverage -->
+  <property name="minimumCodeCoveragePercent" value="30" />
+  <property name="satisfactoryCodeCoveragePercent" value="80" />
+
+
+  <!-- default target (never used) -->
+
+  <target name="all"/>
+
+  <!-- Root targets -->
+
+  <target name="test">
+    <call target="clean"/>
+    <call target="debugBuildInit"/>
+    <call target="buildForTest" />
+    <call target="nunit"/>
+    <call target="zipDebug" />
+  </target>
+
+  <target name="release">
+    <call target="clean"/>
+    <call target="releaseBuildInit"/>
+    <call target="releaseBuild" />
+    <call target="zipBins"/>
+  </target>
+
+  <!-- tasks -->
+
+  <target name="generateVersionInfo">
+    <!--property name="majorVersion" value="0" /-->
+    <xmlpeek file="${version-file-path}" 
+        xpath="/version/@major"
+        property="majorVersion">
+    </xmlpeek>
+    <!--property name="minorVersion" value="0" /-->
+    <xmlpeek file="version.xml" 
+        xpath="/version/@minor"
+        property="minorVersion">
+    </xmlpeek>
+    <asminfo output="${assembly-info-path}" language="CSharp">
+      <imports>
+        <import namespace="System.Reflection" />
+        <import namespace="System.Runtime.InteropServices" />
+      </imports>
+      <attributes>
+        <attribute type="AssemblyVersionAttribute" value="${majorVersion}.${minorVersion}.${buildNumber}.${revisionNumber}" />
+        <!--attribute type="AssemblyFileVersionAttribute" value="${majorVersion}.${minorVersion}" /-->
+        <attribute type="AssemblyCopyrightAttribute" value="Copyright © Silver Curve 2012" />
+        <attribute type="AssemblyCompanyAttribute" value="Silver Curve" />
+        <attribute type="AssemblyProductAttribute" value="Lord's Other Ground Scores" />
+        <attribute type="AssemblyConfigurationAttribute" value="${config} build" />
+      </attributes>
+    </asminfo>
+    <!-- Test code for checking the generated build number -->
+    <echo file="${build.version.report.file}">&lt;version major='' minor='' build='' revision='' config=''/&gt;</echo>
+    <xmlpoke file="${build.version.report.file}"  xpath="/version/@major"    value="${majorVersion}"   />
+    <xmlpoke file="${build.version.report.file}"  xpath="/version/@minor"    value="${minorVersion}"   />
+    <xmlpoke file="${build.version.report.file}"  xpath="/version/@build"    value="${buildNumber}"    />
+    <xmlpoke file="${build.version.report.file}"  xpath="/version/@revision" value="${revisionNumber}" />
+    <xmlpoke file="${build.version.report.file}"  xpath="/version/@config" value="${config}" />
+  </target>
+
+  <target name="clean" description="remove all build products">
+    <delete if="${directory::exists(build-path)}" includeemptydirs="true">
+      <fileset>
+        <include name="${build-path}\*.*"/>
+      </fileset>
+    </delete>
+    <delete dir="${build-path}" if="${directory::exists(build-path)}" includeemptydirs="true"/>
+
+    <foreach item="Folder" property="foldername">
+      <in>
+        <items basedir="${src-path}">
+          <include name="**\bin" />
+          <include name="**\obj" />
+          <include name="**\_ReSharper.*" />
+        </items>
+      </in>
+      <do>
+        <delete dir="${foldername}" />
+      </do>
+    </foreach>
+    <foreach item="File" property="filename">
+      <in>
+        <items basedir="${src-path}">
+          <include name="**\*.user" />
+          <include name="**\*.suo" />
+        </items>
+      </in>
+      <do>
+        <delete file="${filename}" />
+      </do>
+    </foreach>
+  </target>
+
+  <target name="makeBuildPaths">
+    <mkdir dir="${build-path}" />
+    <mkdir dir="${build-path}\bin" />
+    <mkdir dir="${build-reports-path}" />
+    <property name="output.dir" value="${build-path}\bin\${config}" />
+    <mkdir dir="${output.dir}" />
+  </target>
+
+  <target name="releaseBuildInit">
+    <property name="debug" value="false" />
+    <property name="config" value="release" />
+    <call target="makeBuildPaths" />
+    <call target="generateVersionInfo" />
+  </target>
+
+  <target name="debugBuildInit">
+    <property name="config" value="debug" />
+    <call target="makeBuildPaths" />
+    <call target="generateVersionInfo" />
+  </target>
+
+  <setenv>
+    <variable name="MSBuildExtensionsPath32" value="..\..\..\lib"/>
+  </setenv>
+
+  <target name="buildForTest">
+    <msbuild project="${Solution.Filename}">
+      <property name="Configuration" value="${config}"/>
+      <property name="OutDir" value="${output.dir}\\"/>
+    </msbuild>
+  </target>
+
+  <target name="releaseBuild">
+    <property name="release.player.output.dir" value="${output.dir}\Player" />
+    <mkdir dir="${release.player.output.dir}" />
+    <property name="release.web.output.dir" value="${output.dir}\Web" />
+    <mkdir dir="${release.web.output.dir}" />
+    <msbuild project="${Solution.Filename}">
+      <property name="Configuration" value="ReleasePlayer"/>
+      <property name="OutDir" value="${release.player.output.dir}\\"/>
+    </msbuild>
+    <msbuild project="${Solution.Filename}">
+      <property name="Configuration" value="ReleaseWeb"/>
+      <property name="OutDir" value="${release.web.output.dir}\\"/>
+    </msbuild>
+  </target>
+
+  <target name="zipBins">
+    <!--<zip ziplevel="9" zipfile="${build-path}\player.zip">
+      <fileset basedir="${release.player.output.dir}">
+        <include name="**/*" />
+        <exclude name="*.pdb"/>
+      </fileset>
+    </zip>
+    <zip ziplevel="9" zipfile="${build-path}\web.zip">
+      <fileset basedir="${release.web.output.dir}">
+        <include name="**/*" />
+        <exclude name="*.pdb"/>
+      </fileset>
+    </zip>-->
+  </target>
+  
+  <target name="zipDebug">
+    <!--<zip ziplevel="9" zipfile="${build-path}\build.zip">
+    <fileset basedir="${output.dir}">
+        <include name="**/*" />
+        <exclude name="*.pdb"/>
+      </fileset>
+    </zip>-->
+  </target>
+
+  <target name="cleantest">
+    <delete>
+      <fileset>
+        <include name="${build-reports-path}\*.*"/>
+      </fileset>
+    </delete>
+  </target>
+
+  <target name="nunit">
+    <property name="testcontainers" value=""/>
+    <!-- collect test dlls -->
+    <foreach item="File" property="filename">
+      <in>
+        <items>
+          <include name="${output.dir}\*Test*.dll" />
+          <exclude name="${output.dir}\*UnitTestFramework*.dll" />
+        </items>
+      </in>
+      <do>
+        <property name="testcontainers" value="${testcontainers} ${filename}"/>
+      </do>
+    </foreach>
+
+    <!-- run tests -->
+
+    <!--<property name="include" value=""/>
+    <if test="${include.test.categories != ''}">
+      <property name="include" value="/include:${include.test.categories}"/>
+    </if>
+        
+    <property name="exclude" value=""/>
+    <if test="${exclude.test.categories != ''}">
+      <property name="exclude" value="/exclude:${exclude.test.categories}"/>
+    </if>-->
+
+    <setenv name="ProfAPI_ProfilerCompatibilitySetting" value="EnableV2Profiler"/>
+    <setenv name="COMPLUS_ProfAPI_ProfilerCompatibilitySetting" value="EnableV2Profiler"/>
+
+    <!-- ${include} ${exclude} -->
+    <exec program="${nunit.executable}"
+      verbose="true"
+      commandline="${testcontainers} /xml:${build.nunit.result.file} /noshadow /labels"
+      failonerror="false"/>
+
+  </target>
+
+</project>

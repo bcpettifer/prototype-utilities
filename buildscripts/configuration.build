@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<project name="ConfigurationUpdate">
+
+  <!-- configuration values -->
+
+  <!-- root targets -->
+  <target name="updateConfig">
+    <call target="initialiseConfigValues" />
+  </target>
+
+  <!-- tasks -->
+  <target name="initialiseConfigValues">
+    <!-- paths -->
+    
+  </target>
+
+</project>
